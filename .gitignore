@@ -1,0 +1,8 @@
+# Ignore dataset and models
+/breast-ultrasound-images-dataset/
+/models/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class

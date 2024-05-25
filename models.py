@@ -7,7 +7,7 @@ import numpy as np
 
 from transform2d import DWTForward, DWTInverse
 
-__all__ = ['UNet', 'Wavelet_UNet']
+__all__ = ['UNet', 'Wavelet_UNet', 'MR_UNet']
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -53,7 +53,7 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, bilinear=False):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
@@ -135,7 +135,7 @@ class WaveletUpsampling(nn.Module):
         self.dwt_inverse = DWTInverse(wave=self.wavelet)
     
     def forward(self, cA):
-        coeffs = (cA, [None, None, None])
+        coeffs = (cA, [None])
         x = self.dwt_inverse(coeffs)
         return x
 
@@ -144,13 +144,14 @@ class Wavelet_Down(nn.Module):
 
     def __init__(self, in_channels, out_channels, wavelet):
         super().__init__()
-        self.wavelet_conv = nn.Sequential(
+        self.maxpool_conv = nn.Sequential(
             WaveletDownsampling(wavelet=wavelet, level=1),
             DoubleConv(in_channels, out_channels)
         )
 
     def forward(self, x):
-        return self.wavelet_conv(x)
+        return self.maxpool_conv(x)
+
 
 class Wavelet_Up(nn.Module):
     """Upscaling then double conv"""
@@ -159,10 +160,23 @@ class Wavelet_Up(nn.Module):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
-        self.in_channels = in_channels
-        self.out_channels = out_channels
         self.up = WaveletUpsampling(wavelet=wavelet)
         self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        # input is CHW
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+
+        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        # if you have padding issues, see
+        # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
+        # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
+        x = torch.cat([x2, x1], dim=1)
+        return self.conv(x)
+
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -188,10 +202,12 @@ class Wavelet_UNet(nn.Module):
         self.inc = (DoubleConv(n_channels, 64))
         self.down1 = (Wavelet_Down(64, 128, wavelet))
         self.down2 = (Wavelet_Down(128, 256, wavelet))
-        self.down3 = (Wavelet_Down(256, 256, wavelet))
-        self.up1 = (Wavelet_Up(512, 128, wavelet))
-        self.up2 = (Wavelet_Up(256, 64, wavelet))
-        self.up3 = (Wavelet_Up(128, 64, wavelet))
+        self.down3 = (Wavelet_Down(256, 512, wavelet))
+        self.down4 = (Wavelet_Down(512, 512, wavelet))
+        self.up1 = (Wavelet_Up(1024, 256, wavelet))
+        self.up2 = (Wavelet_Up(512, 128, wavelet))
+        self.up3 = (Wavelet_Up(256, 64, wavelet))
+        self.up4 = (Wavelet_Up(128, 64, wavelet))
         self.outc = (OutConv(64, n_classes))
 
     def forward(self, x):
@@ -199,9 +215,11 @@ class Wavelet_UNet(nn.Module):
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
-        x = self.up1(x4, x3)
-        x = self.up2(x, x2)
-        x = self.up3(x, x1)
+        x5 = self.down4(x4)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
         logits = self.outc(x)
         return logits
 
@@ -216,3 +234,102 @@ class Wavelet_UNet(nn.Module):
         self.up3 = torch.utils.checkpoint(self.up3)
         self.up4 = torch.utils.checkpoint(self.up4)
         self.outc = torch.utils.checkpoint(self.outc)
+
+class Wavelet_Up(nn.Module):
+    """Upscaling then double conv"""
+
+    def __init__(self, in_channels, out_channels, wavelet):
+        super().__init__()
+
+        # if bilinear, use the normal convolutions to reduce the number of channels
+        self.up = WaveletUpsampling(wavelet=wavelet)
+        self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        # input is CHW
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+
+        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        # if you have padding issues, see
+        # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
+        # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
+        x = torch.cat([x2, x1], dim=1)
+        return self.conv(x)
+
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        # input is CHW
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+
+        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        # if you have padding issues, see
+        # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
+        # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
+        x = torch.cat([x2, x1], dim=1)
+        return self.conv(x)
+    
+# MRUnet
+
+class MRConcat(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(MRConcat, self).__init__()
+        self.conv1 = DoubleConv(in_channels, out_channels)
+        self.conv2 = DoubleConv(out_channels * 2, out_channels)
+
+    def forward(self, x1, x2):
+        x1 = self.conv1(x1)
+        x = torch.cat([x1, x2], dim=1)
+        x = self.conv2(x)
+        return x
+
+class MR_UNet(nn.Module):
+    def __init__(self, n_channels, n_classes, wavelet='db1'):
+        super(MR_UNet, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+
+        self.wavelet_downsample = WaveletDownsampling(wavelet=wavelet, level=1)
+        
+        self.inc = (DoubleConv(n_channels, 64))
+        self.down1 = (Down(64, 128))
+        self.concat1 = MRConcat(n_channels, 128)
+        self.down2 = (Down(128, 256))
+        self.concat2 = MRConcat(n_channels, 256)
+        self.down3 = (Down(256, 512))
+        self.concat3 = MRConcat(n_channels, 512)
+        self.down4 = (Down(512, 1024))
+        self.concat4 = MRConcat(n_channels, 1024)
+        
+        self.up1 = (Up(1024, 512))
+        self.up2 = (Up(512, 256))
+        self.up3 = (Up(256, 128))
+        self.up4 = (Up(128, 64))
+        self.outc = (OutConv(64, n_classes))
+
+    def forward(self, x):
+        downsampled2 = self.wavelet_downsample(x)
+        downsampled3 = self.wavelet_downsample(downsampled2)
+        downsampled4 = self.wavelet_downsample(downsampled3)
+        downsampled5 = self.wavelet_downsample(downsampled4)
+        
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x2 = self.concat1(downsampled2, x2)
+        x3 = self.down2(x2)
+        x3 = self.concat2(downsampled3, x3)
+        x4 = self.down3(x3)
+        x4 = self.concat3(downsampled4, x4)
+        x5 = self.down4(x4)
+        x5 = self.concat4(downsampled5, x5)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        logits = self.outc(x)
+        return logits

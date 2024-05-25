@@ -32,16 +32,16 @@ from data import BUSIDataset
 
 config = argparse.Namespace()
 
-config.model = 'Wavelet_UNet'
+config.model = 'MR_UNet'
 
 config.SIZE = 256
-config.batch_size = 1
-config.num_workers = 1
+config.batch_size = 8
+config.num_workers = 2
 config.n_channels = 1
 config.lr = 0.0001
 config.min_lr = 0.00001
-config.epochs = 10
-config.early_stopping = 20
+config.epochs = 400
+config.early_stopping = 50
 config.base_dir = ''
 config.root_path = os.path.join(config.base_dir, 'breast-ultrasound-images-dataset/Dataset_BUSI_with_GT/')
 config.semantic = False
@@ -55,7 +55,7 @@ config.scheduler = 'CosineAnnealingLR'
 config.weight_decay = 1e-4
 config.momentum = 0.9
 config.nesterov = False
-config.patience = 20
+config.patience = 50
 
 if config.semantic:
     config.labels = config.classes
@@ -164,6 +164,8 @@ def main():
     model = models.__dict__[config.model](n_channels=config.n_channels,
                                           n_classes=config.num_classes).cuda()
 
+
+    summary(model, (config.n_channels, config.SIZE, config.SIZE))
 
     params = filter(lambda p: p.requires_grad, model.parameters())
     if config.optimizer == 'Adam':
