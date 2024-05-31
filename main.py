@@ -32,7 +32,7 @@ from data import BUSIDataset
 
 config = argparse.Namespace()
 
-config.model = 'MR_UNet'
+config.model = 'UNet'
 
 config.SIZE = 256
 config.batch_size = 8
@@ -40,8 +40,9 @@ config.num_workers = 2
 config.n_channels = 1
 config.lr = 0.0001
 config.min_lr = 0.00001
-config.epochs = 400
-config.early_stopping = 50
+config.epochs = 100
+config.early_stopping = 25
+config.patience = config.early_stopping
 config.base_dir = ''
 config.root_path = os.path.join(config.base_dir, 'breast-ultrasound-images-dataset/Dataset_BUSI_with_GT/')
 config.semantic = False
@@ -55,7 +56,6 @@ config.scheduler = 'CosineAnnealingLR'
 config.weight_decay = 1e-4
 config.momentum = 0.9
 config.nesterov = False
-config.patience = 50
 
 if config.semantic:
     config.labels = config.classes
@@ -162,7 +162,8 @@ def main():
 
     criterion = metrics.__dict__[config.loss]().cuda()
     model = models.__dict__[config.model](n_channels=config.n_channels,
-                                          n_classes=config.num_classes).cuda()
+                                          n_classes=config.num_classes,
+                                          n_layers=5).cuda()
 
 
     summary(model, (config.n_channels, config.SIZE, config.SIZE))
@@ -197,8 +198,8 @@ def main():
     # image_paths, mask_paths = image_paths[:20], mask_paths[:20] # overfitting
     X_train, X_val, y_train, y_val = train_test_split(image_paths, mask_paths,  test_size=0.2, random_state=42)
 
-    train_dataset = BUSIDataset(image_paths=X_train, mask_paths=y_train, transform=train_transform)
-    val_dataset = BUSIDataset(image_paths=X_val, mask_paths=y_val, transform=None)
+    train_dataset = BUSIDataset(image_paths=X_train, mask_paths=y_train, size=config.SIZE, transform=train_transform)
+    val_dataset = BUSIDataset(image_paths=X_val, mask_paths=y_val, size=config.SIZE, transform=None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,

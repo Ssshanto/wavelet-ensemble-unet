@@ -1,3 +1,6 @@
+# vscode files
+.vscode/
+
 # Ignore dataset and models
 /breast-ultrasound-images-dataset/
 /models/

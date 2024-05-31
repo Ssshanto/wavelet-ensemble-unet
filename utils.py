@@ -14,6 +14,7 @@ from torch.optim import lr_scheduler
 
 from collections import OrderedDict
 from tqdm import tqdm
+import utils, metrics
 
 from torchsummary import summary
 
@@ -86,7 +87,7 @@ def show_mask(img, msk, cmap='gray', alpha=0.6): # only for binary segmentation
 
 # comparison
 
-def compare_prediction(img, mask, pred, classes=['normal', 'benign', 'malignant'], semantic=False):
+def compare_prediction(img, mask, pred, pred2 = None, classes=['normal', 'benign', 'malignant'], semantic=False):
     img = img.cpu().numpy()
     mask = mask.cpu().numpy()
     pred = pred.detach().cpu().numpy()
@@ -95,7 +96,7 @@ def compare_prediction(img, mask, pred, classes=['normal', 'benign', 'malignant'
     mask = np.squeeze(mask, axis=0)
     pred = np.squeeze(pred, axis=0)
 
-    fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+    fig, axs = plt.subplots(1, 3 + (pred2 != None), figsize=(12, 4))
     axs[0].imshow(img, cmap='gray')
     axs[0].set_title("Image")
 
@@ -110,6 +111,14 @@ def compare_prediction(img, mask, pred, classes=['normal', 'benign', 'malignant'
         axs[2].imshow(pred[pred_label, :, :], cmap='gray', vmin=0, vmax=1)
         axs[2].set_title(f"Prediction: {classes[pred_label + 1]}")
 
+        if pred2 != None:
+            pred2 = pred2.detach().cpu().numpy()
+            pred2 = np.squeeze(pred2, axis=0)
+            pred2 = pred2[1:, :, :, ]
+            pred2_label = pred2.sum(axis=(1, 2)).argmax()
+            axs[3].imshow(pred2[pred2_label, :, :], cmap='gray', vmin=0, vmax=1)
+            axs[3].set_title(f"Prediction 2: {classes[pred2_label + 1]}")
+
     else:
         pred = np.where(pred >= 0.5, 1, 0)
 
@@ -118,6 +127,13 @@ def compare_prediction(img, mask, pred, classes=['normal', 'benign', 'malignant'
 
         axs[2].imshow(pred[0], cmap='gray', vmin=0, vmax=1)
         axs[2].set_title(f"Prediction")
+
+        if pred2 != None:
+            pred2 = pred2.detach().cpu().numpy()
+            pred2 = np.squeeze(pred2, axis=0)
+            pred2 = np.where(pred2 >= 0.5, 1, 0)
+            axs[3].imshow(pred2[0], cmap='gray', vmin=0, vmax=1)
+            axs[3].set_title(f"Prediction 2")
 
 
 def show_prediction(img, pred, semantic = False, num_classes = 3, labels = ['cancer'], threshold = False):
@@ -210,3 +226,13 @@ def plot_curves(model_name):
 
     plt.tight_layout()
     plt.show()
+
+def show_predictions(count, X_val, y_val, model, size):
+    for _ in range(count):
+        idx = random.randint(0, len(X_val) - 1)
+
+        image, mask = utils.load_tensor(X_val[idx], y_val[idx], size=size)
+        mask = mask.unsqueeze(0)
+        image = image.unsqueeze(0)
+        vanilla_prediction = model(image)
+        utils.compare_prediction(image, mask, vanilla_prediction)
