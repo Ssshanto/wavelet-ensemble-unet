@@ -258,13 +258,11 @@ class Wavelet_UNet_All(nn.Module):
         self.n_channels = n_channels
         self.n_classes = n_classes
 
-        # TODO: FIX Wavelet_Down_All to return channels properly
-
         self.inc = (DoubleConv(n_channels, 64))
-        self.down1 = (Wavelet_Down(64, 128, wavelet))
-        self.down2 = (Wavelet_Down(128, 256, wavelet))
-        self.down3 = (Wavelet_Down(256, 512, wavelet))
-        self.down4 = (Wavelet_Down(512, 512, wavelet))
+        self.down1 = (Wavelet_Down_All(4 * 64, 128, wavelet))
+        self.down2 = (Wavelet_Down_All(4 * 128, 256, wavelet))
+        self.down3 = (Wavelet_Down_All(4 * 256, 512, wavelet))
+        self.down4 = (Wavelet_Down_All(4 * 512, 512, wavelet))
         self.up1 = (Wavelet_Up(1024, 256, wavelet))
         self.up2 = (Wavelet_Up(512, 128, wavelet))
         self.up3 = (Wavelet_Up(256, 64, wavelet))
