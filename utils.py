@@ -200,7 +200,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 def plot_curves(model_name):
-    log_data = pd.read_csv('models/%s/log.csv' % model_name)
+    log_data = pd.read_csv('model_files/%s/log.csv' % model_name)
 
     # Plot training and validation loss
     plt.figure(figsize=(12, 4))

@@ -24,9 +24,6 @@ from albumentations.core.composition import Compose, OneOf
 
 import argparse
 
-import models
-import metrics
-
 __all__ = ['BCEDiceLoss']
 
 class BCEDiceLoss(nn.Module):
