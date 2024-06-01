@@ -526,10 +526,9 @@ class MR_UNet_All(nn.Module):
 
     def forward(self, x):
         downsampled2 = self.wavelet_downsample(x)
-        # take only the LL portion of each downsample, use 0:1 to preserve dimension ordering
-        downsampled3 = self.wavelet_downsample(downsampled2[:, 0:1])
-        downsampled4 = self.wavelet_downsample(downsampled3[:, 0:1])
-        downsampled5 = self.wavelet_downsample(downsampled4[:, 0:1])
+        downsampled3 = self.wavelet_downsample(downsampled2)
+        downsampled4 = self.wavelet_downsample(downsampled3)
+        downsampled5 = self.wavelet_downsample(downsampled4)
 
         x1 = self.inc(x)
         x2 = self.down1(x1)
@@ -545,4 +544,75 @@ class MR_UNet_All(nn.Module):
         x = self.up3(x, x2)
         x = self.up4(x, x1)
         logits = self.outc(x)
+        return logits
+
+class LL_HH_Fusion(nn.Module):
+    def __init__(self):
+        super(LL_HH_Fusion, self).__init__()
+
+    def forward(self, x1, x2):
+        x = x1 + x2
+        return x
+
+class Feature_Fusion_UNet(nn.Module):
+    def __init__(self, n_channels, n_classes, wavelet='db1'):
+        super(Feature_Fusion_UNet, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+
+        self.wavelet_downsample = WaveletDownsamplingAll(wavelet=wavelet, level=1)
+        self.wavelet_upsample = WaveletUpsampling()
+        self.fusion = LL_HH_Fusion()
+        
+        self.inc = (DoubleConv(n_channels, 64))
+        
+        self.lldown1 = (Down(64, 128))
+        self.lldown2 = (Down(128, 256))
+        self.lldown3 = (Down(256, 512))
+        self.lldown4 = (Down(512, 1024))
+        
+        self.hhdown1 = (Down(64, 128))
+        self.hhdown2 = (Down(128, 256))
+        self.hhdown3 = (Down(256, 512))
+        self.hhdown4 = (Down(512, 1024))
+        
+        self.up1 = (Up(1024, 512))
+        self.up2 = (Up(512, 256))
+        self.up3 = (Up(256, 128))
+        self.up4 = (Up(128, 64))
+        self.outc = (OutConv(64, n_classes))
+
+    def forward(self, x):
+        x = self.wavelet_upsample(x)
+        
+        res = self.wavelet_downsample(x)
+        ll = res[:, 0:1]
+        hh = res[:, 3:4]
+
+        ll1 = self.inc(ll)
+        hh1 = self.inc(hh)
+        x1 = self.fusion(ll1, hh1)
+        
+        ll2 = self.lldown1(ll1)
+        hh2 = self.hhdown1(hh1)
+        x2 = self.fusion(ll2, hh2)
+
+        ll3 = self.lldown2(ll2)
+        hh3 = self.hhdown2(hh2)
+        x3 = self.fusion(ll3, hh3)
+
+        ll4 = self.lldown3(ll3)
+        hh4 = self.hhdown3(hh3)
+        x4 = self.fusion(ll4, hh4)
+
+        ll5 = self.lldown4(ll4)
+        hh5 = self.hhdown4(hh4)
+        x5 = self.fusion(ll5, hh5)
+
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        logits = self.outc(x)
+        
         return logits
