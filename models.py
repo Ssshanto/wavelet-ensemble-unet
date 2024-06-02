@@ -242,73 +242,51 @@ class MR_UNet_All(nn.Module):
         logits = self.outc(x)
         return logits
     
-# def main():
-#     model = MR_UNet_All(1, 3).cuda()
-#     x = torch.randn(8, 1, 256, 256).cuda()
-#     y = model(x)
-
-# if __name__ == '__main__':
-#     main()
-
 class Feature_Fusion_UNet(nn.Module):
-    def __init__(self, n_channels, n_classes, wavelet='db1'):
+    def __init__(self, n_channels, n_classes, n_layers = 4, n_filters = 64, wavelet='db1'):
         super(Feature_Fusion_UNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
+        self.n_layers = n_layers
 
-        self.wavelet_downsample = WaveletDownsamplingAll(wavelet=wavelet, level=1)
-        self.wavelet_upsample = WaveletUpsampling()
-        self.fusion = LL_HH_Fusion()
-        
-        self.inc = (DoubleConv(n_channels, 64))
-        
-        self.lldown1 = (Down(64, 128))
-        self.lldown2 = (Down(128, 256))
-        self.lldown3 = (Down(256, 512))
-        self.lldown4 = (Down(512, 1024))
-        
-        self.hhdown1 = (Down(64, 128))
-        self.hhdown2 = (Down(128, 256))
-        self.hhdown3 = (Down(256, 512))
-        self.hhdown4 = (Down(512, 1024))
-        
-        self.up1 = (Up(1024, 512))
-        self.up2 = (Up(512, 256))
-        self.up3 = (Up(256, 128))
-        self.up4 = (Up(128, 64))
-        self.outc = (OutConv(64, n_classes))
+        self.upsample = WaveletUpsampling(wavelet=wavelet)
+        self.feature_extract = WaveletChannels(wavelet=wavelet) 
+
+        self.inc = DoubleConv(n_channels, n_filters)
+
+        self.downs = nn.ModuleList([Down(n_filters * 2**i, n_filters * 2**(i+1)) for i in range(n_layers)])
+        self.ups = nn.ModuleList([FeatureFusionUp(n_filters * 2**(n_layers-i), n_filters * 2**(n_layers-i-1)) for i in range(n_layers)])
+        self.outc = OutConv(n_filters, n_classes)
 
     def forward(self, x):
-        x = self.wavelet_upsample(x)
+        x = self.upsample(x)
+        ll, lh, hl, hh = self.feature_extract(x)
+
+        skip_connections = []
+        ll = self.inc(ll)
+        lh = self.inc(lh)
+        hl = self.inc(hl)
+        hh = self.inc(hh)
+
+        skip_connections.append((ll, lh, hl, hh))
+        x = ll
+
+        for down in self.downs:
+            x = down(x)
+            lh = down(lh)
+            hl = down(hl)
+            hh = down(hh)
+            skip_connections.append((x, lh, hl, hh))
+
+        for i, up in enumerate(self.ups):
+            ll, lh, hl, hh = skip_connections[-(i+2)]
+            x = up(x, ll, lh, hl, hh)
         
-        res = self.wavelet_downsample(x)
-        ll = res[:, 0:1]
-        hh = res[:, 3:4]
-
-        ll1 = self.inc(ll)
-        hh1 = self.inc(hh)
-        x1 = self.fusion(ll1, hh1)
-        
-        ll2 = self.lldown1(ll1)
-        hh2 = self.hhdown1(hh1)
-        x2 = self.fusion(ll2, hh2)
-
-        ll3 = self.lldown2(ll2)
-        hh3 = self.hhdown2(hh2)
-        x3 = self.fusion(ll3, hh3)
-
-        ll4 = self.lldown3(ll3)
-        hh4 = self.hhdown3(hh3)
-        x4 = self.fusion(ll4, hh4)
-
-        ll5 = self.lldown4(ll4)
-        hh5 = self.hhdown4(hh4)
-        x5 = self.fusion(ll5, hh5)
-
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
         logits = self.outc(x)
-        
         return logits
+
+
+if __name__ == '__main__':
+    model = Feature_Fusion_UNet(n_channels=1, n_classes=1).cuda()
+    x = torch.randn(2, 1, 128, 128).cuda()
+    y = model(x)

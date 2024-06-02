@@ -270,6 +270,27 @@ class WaveletDownsamplingHH(nn.Module):
         hh = (hh - hh.min()) / (hh.max() - hh.min())
         return hh
     
+class WaveletChannels(nn.Module):
+    def __init__(self, wavelet='db1', level=1):
+        super(WaveletChannels, self).__init__()
+        self.wavelet = wavelet
+        self.level = level
+        self.dwt_forward = DWTForward(wave=self.wavelet, J=self.level)
+
+    def forward(self, x):
+        coeffs = self.dwt_forward(x)
+        # extract all 4 channels, ll, hl, lh, hh
+        ll = coeffs[0]
+        lh = coeffs[1][0][:, :, 0]
+        hl = coeffs[1][0][:, :, 1]
+        hh = coeffs[1][0][:, :, 2]
+        # normalize all 4 channels
+        ll = (ll - ll.min()) / (ll.max() - ll.min())
+        lh = (lh - lh.min()) / (lh.max() - lh.min())
+        hl = (hl - hl.min()) / (hl.max() - hl.min())
+        hh = (hh - hh.min()) / (hh.max() - hh.min())
+        return (ll, lh, hl, hh)
+    
 # Wavelet Fusion Functions
 
 class LL_HH_Fusion(nn.Module):
@@ -279,3 +300,30 @@ class LL_HH_Fusion(nn.Module):
     def forward(self, x1, x2):
         x = x1 + x2
         return x
+    
+class FeatureFusionUp(nn.Module):
+    """Upscaling then double conv"""
+
+    def __init__(self, in_channels, out_channels, bilinear=False):
+        super().__init__()
+
+        self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
+        self.conv = DoubleConv((5 * in_channels) // 2, out_channels)
+
+    def forward(self, x1, ll, lh, hl, hh):
+        x1 = self.up(x1)
+        # input is CHW
+        diffY = ll.size()[2] - x1.size()[2]
+        diffX = ll.size()[3] - x1.size()[3]
+
+        ll = F.pad(ll, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        lh = F.pad(lh, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        hl = F.pad(hl, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        hh = F.pad(hh, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        
+        x = torch.cat([x1, ll, lh, hl, hh], dim=1)
+        return self.conv(x)

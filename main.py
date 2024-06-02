@@ -25,7 +25,7 @@ from sklearn.model_selection import train_test_split
 
 import argparse
 
-import models
+import models.models as models
 import metrics
 import utils
 from data import BUSIDataset
