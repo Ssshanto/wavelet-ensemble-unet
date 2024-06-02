@@ -96,9 +96,12 @@ def compare_prediction(img, mask, pred, pred2 = None, classes=['normal', 'benign
     mask = np.squeeze(mask, axis=0)
     pred = np.squeeze(pred, axis=0)
 
+    # remove size markers in axis
+
     fig, axs = plt.subplots(1, 3 + (pred2 != None), figsize=(12, 4))
     axs[0].imshow(img, cmap='gray')
     axs[0].set_title("Image")
+    plt.axis('off')
 
     if semantic:
         mask = mask[1:, :, :]
