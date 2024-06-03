@@ -360,6 +360,20 @@ class up_conv(nn.Module):
     def forward(self,x):
         x = self.up(x)
         return x
+    
+class wavelet_up_conv(nn.Module):
+    def __init__(self,ch_in,ch_out):
+        super(wavelet_up_conv,self).__init__()
+        self.up = nn.Sequential(
+            WaveletUpsampling(wavelet='db1'),
+            nn.Conv2d(ch_in,ch_out,kernel_size=3,stride=1,padding=1,bias=True),
+		    nn.BatchNorm2d(ch_out),
+			nn.ReLU(inplace=True)
+        )
+
+    def forward(self,x):
+        x = self.up(x)
+        return x
 
 class Recurrent_block(nn.Module):
     def __init__(self,ch_out,t=2):
