@@ -1329,22 +1329,24 @@ class WI_UNet2Plus(nn.Module):
         downsampled3 = self.wavelet_downsample(downsampled2)
         downsampled4 = self.wavelet_downsample(downsampled3)
         downsampled5 = self.wavelet_downsample(downsampled4)
-        print(downsampled2.shape, downsampled3.shape, downsampled4.shape, downsampled5.shape)
 
         # column : 0
         X_00 = self.conv00(inputs)
         maxpool0 = self.maxpool0(X_00)
-        X_10 = self.conv10(maxpool0)
-        X_10 = self.concat1(downsampled2, X_10)
+        X_10 = self.concat1(downsampled2, maxpool0)
+        X_10 = self.conv10(X_10)
+
         maxpool1 = self.maxpool1(X_10)
-        X_20 = self.conv20(maxpool1)
-        X_20 = self.concat2(downsampled3, X_20)
+        X_20 = self.concat2(downsampled3, maxpool1)
+        X_20 = self.conv20(X_20)
+        
         maxpool2 = self.maxpool2(X_20)
-        X_30 = self.conv30(maxpool2)
-        X_30 = self.concat3(downsampled4, X_30)
+        X_30 = self.concat3(downsampled4, maxpool2)
+        X_30 = self.conv30(X_30)
+
         maxpool3 = self.maxpool3(X_30)
-        X_40 = self.conv40(maxpool3)
-        X_40 = self.concat4(downsampled5, X_40)
+        X_40 = self.concat4(downsampled5, maxpool3)
+        X_40 = self.conv40(X_40)
 
         # column : 1
         X_01 = self.up_concat01(X_10, X_00)
@@ -1711,7 +1713,6 @@ class WI_AttU_Net(nn.Module):
         return d1
     
 if __name__ == '__main__':
-    model = WI_AttU_Net(n_channels=1, n_classes=1).cuda()
+    model = WI_UNet2Plus(n_channels=1, n_classes=1).cuda()
     x = torch.randn(2, 1, 128, 128).cuda()
     y = model(x)
-    print(y.shape)

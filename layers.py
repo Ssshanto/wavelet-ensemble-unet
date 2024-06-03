@@ -85,7 +85,6 @@ class unetUp_origin(nn.Module):
         outputs0 = self.up(inputs0)
         for i in range(len(input)):
             outputs0 = torch.cat([outputs0, input[i]], 1)
-        print(outputs0.shape)
         return self.conv(outputs0)
     
 class waveletUp_origin(nn.Module):
