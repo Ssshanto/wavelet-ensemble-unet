@@ -1017,7 +1017,7 @@ class WS_UNet3Plus(nn.Module):
         self.h4_Cat_hd4_relu = nn.ReLU(inplace=True)
 
         # hd5->20*20, hd4->40*40, Upsample 2 times
-        self.hd5_UT_hd4 = Wavelet_Up()  # 14*14
+        self.hd5_UT_hd4 = WaveletUpsampling()  # 14*14
         self.hd5_UT_hd4_conv = nn.Conv2d(filters[4], self.CatChannels, 3, padding=1)
         self.hd5_UT_hd4_bn = nn.BatchNorm2d(self.CatChannels)
         self.hd5_UT_hd4_relu = nn.ReLU(inplace=True)
@@ -1046,7 +1046,7 @@ class WS_UNet3Plus(nn.Module):
         self.h3_Cat_hd3_relu = nn.ReLU(inplace=True)
 
         # hd4->40*40, hd4->80*80, Upsample 2 times
-        self.hd4_UT_hd3 = Wavelet_Up()  # 14*14
+        self.hd4_UT_hd3 = WaveletUpsampling()  # 14*14
         self.hd4_UT_hd3_conv = nn.Conv2d(self.UpChannels, self.CatChannels, 3, padding=1)
         self.hd4_UT_hd3_bn = nn.BatchNorm2d(self.CatChannels)
         self.hd4_UT_hd3_relu = nn.ReLU(inplace=True)
@@ -1075,7 +1075,7 @@ class WS_UNet3Plus(nn.Module):
         self.h2_Cat_hd2_relu = nn.ReLU(inplace=True)
 
         # hd3->80*80, hd2->160*160, Upsample 2 times
-        self.hd3_UT_hd2 = Wavelet_Up()  # 14*14
+        self.hd3_UT_hd2 = WaveletUpsampling()  # 14*14
         self.hd3_UT_hd2_conv = nn.Conv2d(self.UpChannels, self.CatChannels, 3, padding=1)
         self.hd3_UT_hd2_bn = nn.BatchNorm2d(self.CatChannels)
         self.hd3_UT_hd2_relu = nn.ReLU(inplace=True)
@@ -1104,7 +1104,7 @@ class WS_UNet3Plus(nn.Module):
         self.h1_Cat_hd1_relu = nn.ReLU(inplace=True)
 
         # hd2->160*160, hd1->320*320, Upsample 2 times
-        self.hd2_UT_hd1 = Wavelet_Up()  # 14*14
+        self.hd2_UT_hd1 = WaveletUpsampling()  # 14*14
         self.hd2_UT_hd1_conv = nn.Conv2d(self.UpChannels, self.CatChannels, 3, padding=1)
         self.hd2_UT_hd1_bn = nn.BatchNorm2d(self.CatChannels)
         self.hd2_UT_hd1_relu = nn.ReLU(inplace=True)
