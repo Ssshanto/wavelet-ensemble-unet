@@ -116,7 +116,7 @@ class Wavelet_Down(nn.Module):
 class Wavelet_Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, wavelet):
+    def __init__(self, in_channels, out_channels, wavelet='db1'):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels

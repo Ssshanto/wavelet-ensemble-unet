@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from init_weights import init_weights
+from helper import *
 
 
 class unetConv2(nn.Module):
@@ -84,4 +85,27 @@ class unetUp_origin(nn.Module):
         outputs0 = self.up(inputs0)
         for i in range(len(input)):
             outputs0 = torch.cat([outputs0, input[i]], 1)
+        print(outputs0.shape)
         return self.conv(outputs0)
+    
+class waveletUp_origin(nn.Module):
+    def __init__(self, in_size, out_size, is_deconv=False, n_concat=2):
+        super(waveletUp_origin, self).__init__()
+        # self.conv = unetConv2(out_size*2, out_size, False)
+        self.conv = unetConv2(in_size + (n_concat - 1) * out_size, out_size, False)
+        self.up = WaveletUpsampling()
+
+        # initialise the blocks
+        for m in self.children():
+            if m.__class__.__name__.find('unetConv2') != -1: continue
+            init_weights(m, init_type='kaiming')
+
+    def forward(self, inputs0, *input):
+        # print(self.n_concat)
+        # print(input)
+        outputs0 = self.up(inputs0)
+        for i in range(len(input)):
+            outputs0 = torch.cat([outputs0, input[i]], 1)
+        return self.conv(outputs0)
+    
+
